@@ -1,31 +1,82 @@
+from typing import Optional, Callable, Any
 from tkextrafont import Font as exFont
+from colorpicker import ColorPicker
+from tkinter import filedialog
+from timer import TimerView
 
 import customtkinter as ctk
 import tkinter as tk
+
+import json
 
 import os
 os.system("cls")
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("assets/theme.json")
+VERSION = "v1.0.1"
 
+def createNavButton(master, width: int, height: int, text: str, font: tuple, command: Callable) -> ctk.CTkButton:
+    return ctk.CTkButton(master,
+                         width=width, height=height,
+                         fg_color="#363636", hover_color="#262626",
+                         text=text, font=font,
+                         command=command)
 
-class TimerPreviev(ctk.CTkFrame):
-    def __init__(self, master, color: str = "#ffffff") -> None:
-        super().__init__(master, width=360, height=55, bg_color="#262626")
+class NavFrame(ctk.CTkFrame):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.hover = True
+
+    def mouseEnter(self, event) -> None:
+        self.hover = True
+
+    def mouseLeave(self, event) -> None:
+        self.hover = False
+
+    def forgetFrame(self) -> None:
+        self.place_forget()
+        self.hover = True
+        self.lift()
+
+    def placeFrame(self, **kwargs) -> None:
+        self.place(**kwargs)
+        self.bind("<Enter>", self.mouseEnter)
+        self.bind("<Leave>", self.mouseLeave)
+        self.visible = True
+
+    def __getattr__(self, value: Any) -> Optional[Any]:
+        if value in self.__dict__:
+            return self.__dict__[value]
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{value}'")
+
+class NavSubButton(ctk.CTkButton):
+    def __init__(self, master, width: int, height: int, text: str, font: tuple, command: Callable) -> None:
+        super().__init__(master, width=width, height=height, text=text, font=font, command=command, anchor="w", fg_color="#363636", hover_color="#262626")
+
 
 class App(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
-        self.DIMENTIONS = ( 400, 500 )
+        self.WIDTH = 400
+        self.HEIGHT = 500
 
-        self.geometry(f"{self.DIMENTIONS[0]}x{self.DIMENTIONS[1]}")
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+
+        x_position = (screen_width - self.WIDTH) // 2
+        y_position = (screen_height - self.HEIGHT) // 2
+
+        self.geometry(f"{self.WIDTH}x{self.HEIGHT}+{x_position}+{y_position}")
         self.iconbitmap("assets/images/favicon.ico")
         self.resizable(False, False)
         self.title("FNAF Interval Timer by VicExe")
-
+        
+        self.currentNavFrame = None
         self.timerWindow = None
         self.currentScreen = 0
+
+        self.bind("<Button-1>", self.mouse1ButtonDown)
 
         if not self.loadFonts():
             print("Error: Failed to load fonts. Default fonts used instead")
@@ -34,58 +85,20 @@ class App(ctk.CTk):
             print("Error: Failed to load widgets.")
             return
 
-
     def start(self) -> None:
         self.mainloop()
 
+    def mouse1ButtonDown(self, event) -> None:
+        if self.currentNavFrame and not self.isMouseInsideFrame(event, self.currentNavFrame):
+            self.currentNavFrame.forgetFrame()
+            self.currentNavFrame = None
 
-    def ACbutton_load(self) -> None:
-        print("load")
-
-
-    def ACbutton_save(self) -> None:
-        print("save")
-
-
-    def ACbutton_togglePreview(self) -> None:
-        if self.timerWindow is None:
-            self.button_togglePreview.configure(text="Hide Timer", fg_color="#bf1a11", hover_color="#82120c", text_color="#ffffff")
-            # window creation logic
-
-            self.timerWindow = "WINDOW OBJECT"
-
-        else:
-            self.button_togglePreview.configure(text="Show Timer", fg_color="#10ad3a", hover_color="#0c8a2e", text_color="#000000")
-            # window destruction logic
-
-            self.timerWindow = None
-
-
-
-    def ACbutton_switchScreen(self, state: int) -> None:
-        if self.currentScreen == state:
-            return
+    def isMouseInsideFrame(self, event, frame) -> bool:
+        x, y, width, height = frame.bbox()
+        inside_frame = x <= event.x <= x + width and y <= event.y <= y + height
         
-        if state == 0:
-            self.btn_timers.configure(fg_color="#212121", hover_color="#212121")
-            self.frame_timers.place(x=10, y=40 + 10)
-
-            self.btn_settings.configure(fg_color="#2e2e2e", hover_color="#262626")
-            self.frame_settings.place_forget()
-
-            self.currentScreen = 0
-
-
-        elif state == 1:
-            self.btn_settings.configure(fg_color="#212121", hover_color="#212121")
-            self.frame_settings.place(x=10, y=40 + 10)
-
-            self.btn_timers.configure(fg_color="#2e2e2e", hover_color="#262626")
-            self.frame_timers.place_forget()
-
-            self.currentScreen = 1
-
-
+        return inside_frame or event.y < 24
+        
     def loadFonts(self) -> bool:
         try:
             self.LCD_SOLID = "LCD Solid"
@@ -101,76 +114,134 @@ class App(ctk.CTk):
             self.CONSOLAS_REGULAR = "Helvetica"
 
             return False
+        
+    def showNavFrame(self, id: int) -> None: # Button Action
+        for frame in self.nav_frames:
+            frame.forgetFrame()
+
+        pos = {
+            0: 0,
+            1: 50,
+            2: 120,
+            3: 180
+        }.get(id, 0)
+
+        frame = self.nav_frames[id]
+        frame.placeFrame(x=pos, y=24) # NAVBAR_HEIGHT
+        self.currentNavFrame = frame
+
+    def saveConfig(self) -> None: # Button Action
+        file_path = filedialog.asksaveasfilename(
+            title="Save config",
+            defaultextension=".json",
+            filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")]
+        )
+
+        if file_path is None:
+            print("Failed to get file path.")
+            return
+        
+        print(file_path)
+
+    def loadConfig(self) -> None: # Button Action
+        file_path = filedialog.askopenfilename(
+            title="Save config",
+            filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")]
+        )
+
+        if file_path is None:
+            print("Failed to get file path.")
+            return
+        
+        print(file_path)
+
+    def changeView(self, id: int) -> None: # Button Action
+        for view in self.view_frames:
+            view.place_forget()
+
+        self.view_frames[id].place(x=0, y=24) # NAVBAR_HEIGHT
+        self.currentNavFrame.forgetFrame()
+        self.currentNavFrame = None
+
+    def toggleTimerWindow(self) -> None:
+        self.currentNavFrame.forgetFrame()
+        self.currentNavFrame = None
+
+        if not self.timerWindow is None:
+            self.timerWindow.destroyWindow()
+            self.timerWindow = None
+            return
+        
+        self.timerWindow = TimerView(self, settings_path="assets/presets/test.json")
+        self.timerWindow.createWindow()
 
 
     def loadWidgets(self) -> bool:
-        WIDTH, HEIGHT = self.DIMENTIONS
-
-        h_WIDTH = WIDTH // 2
-        h_HEIGHT = HEIGHT // 2
+        WIDTH, HEIGHT = self.WIDTH, self.HEIGHT
 
         try:
-            self.btn_timers = ctk.CTkButton(self, text="Timers",
-                                             width=h_WIDTH, 
-                                             height=40, 
-                                             font=(self.CONSOLAS_REGULAR, 20),
-                                             corner_radius=0,
-                                             fg_color="#212121", hover_color="#212121",
-                                             command=lambda: self.ACbutton_switchScreen(0))
+            NAVBAR_HEIGHT = 24
+            self.nav_bar = ctk.CTkFrame(self, width=WIDTH, height=NAVBAR_HEIGHT, fg_color="#292929")
+            self.nav_bar.place(x=0, y=0)
+
+            self.nav_version_label = ctk.CTkLabel(self.nav_bar, text=VERSION, font=(self.CONSOLAS_REGULAR, 14), text_color="#595959")
+            self.nav_version_label.place(relx=1.0, rely=0.5, anchor="e", x=-5)
+
+            consolas_regular15 = (self.CONSOLAS_REGULAR, 15)
+
+            self.nav_file = createNavButton(self.nav_bar, width=50, height=NAVBAR_HEIGHT, text="File", font=consolas_regular15, command=lambda: self.showNavFrame(0))
+            self.nav_settings = createNavButton(self.nav_bar, width=70, height=NAVBAR_HEIGHT, text="Settings", font=consolas_regular15, command=lambda: self.showNavFrame(1))
+            self.nav_help = createNavButton(self.nav_bar, width=60, height=NAVBAR_HEIGHT, text="Help", font=consolas_regular15, command=lambda: self.showNavFrame(2))
             
-            self.btn_settings = ctk.CTkButton(self, text="Settings", 
-                                             width=h_WIDTH, 
-                                             height=40,
-                                             font=(self.CONSOLAS_REGULAR, 20), 
-                                             corner_radius=0, 
-                                             fg_color="#2e2e2e", hover_color="#262626", 
-                                             command=lambda: self.ACbutton_switchScreen(1))
+            self.nav_file_frame = NavFrame(self, width=120, height=90, fg_color="#363636")
+            self.nav_settings_frame = NavFrame(self, width=120, height=60, fg_color="#363636")
+            self.nav_help_frame = NavFrame(self, width=120, height=90, fg_color="#363636")
             
-            self.btn_timers.place(x=0, y=0)
-            self.btn_settings.place(relx=1.0, y=0, anchor="ne")
+            self.nav_frames = [self.nav_file_frame, self.nav_settings_frame, self.nav_help_frame]
 
-            frame_width = WIDTH - 10 * 2
-            frame_height = HEIGHT - 40 - 10 * 2
+            self.nav_file.place(x=0, y=0)
+            self.nav_settings.place(x=50, y=0)
+            self.nav_help.place(x=120, y=0)
 
-            self.frame_timers = ctk.CTkFrame(self, width=frame_width, height=frame_height, fg_color="#303030", corner_radius=5)
-            self.frame_settings = ctk.CTkFrame(self, width=frame_width, height=frame_height, fg_color="#303030", corner_radius=5)
+            self.nav_file_save = NavSubButton(self.nav_file_frame, 120, 30, "Save", consolas_regular15, self.saveConfig)
+            self.nav_file_load = NavSubButton(self.nav_file_frame, 120, 30, "Load", consolas_regular15, self.loadConfig)
+            self.nav_file_loadpreset = NavSubButton(self.nav_file_frame, 120, 30, "Load preset", consolas_regular15, lambda: self.changeView(2))
+            self.nav_settings_change = NavSubButton(self.nav_settings_frame, 120, 30, "Change settings", consolas_regular15, lambda: self.changeView(1))
+            self.nav_settings_sstimer = NavSubButton(self.nav_settings_frame, 120, 30, "Start/Stop timer", consolas_regular15, self.toggleTimerWindow)
+            self.nav_help_about = NavSubButton(self.nav_help_frame, 120, 30, "About", consolas_regular15, lambda: self.changeView(3))
+            self.nav_help_git = NavSubButton(self.nav_help_frame, 120, 30, "My Github", consolas_regular15, lambda: print("My Github"))
+            self.nav_help_htu = NavSubButton(self.nav_help_frame, 120, 30, "How to use", consolas_regular15, lambda: self.changeView(4))
 
-            self.frame_timers.place(x=10, y=40 + 10)
+            self.nav_file_save.place(x=0, y=0)
+            self.nav_file_load.place(x=0, y=30)
+            self.nav_file_loadpreset.place(x=0, y=60)
+            self.nav_settings_change.place(x=0, y=0)
+            self.nav_settings_sstimer.place(x=0, y=30)
+            self.nav_help_about.place(x=0, y=0)
+            self.nav_help_git.place(x=0, y=30)
+            self.nav_help_htu.place(x=0, y=60)
 
-            self.button_save = ctk.CTkButton(self.frame_timers, text="Save", 
-                                            width=150, height=30, 
-                                            font=(self.CONSOLAS_REGULAR, 15),
-                                            command=self.ACbutton_save)
-            
-            self.button_load = ctk.CTkButton(self.frame_timers, text="Load", 
-                                            width=150, height=30, 
-                                            font=(self.CONSOLAS_REGULAR, 15),
-                                            command=self.ACbutton_load)
+            self.view_timers = ctk.CTkFrame(self, width=WIDTH, height=HEIGHT-NAVBAR_HEIGHT)
+            self.view_settings = ctk.CTkFrame(self, width=WIDTH, height=HEIGHT-NAVBAR_HEIGHT)
+            self.view_load_presets = ctk.CTkFrame(self, width=WIDTH, height=HEIGHT-NAVBAR_HEIGHT)
+            self.view_about = ctk.CTkFrame(self, width=WIDTH, height=HEIGHT-NAVBAR_HEIGHT)
+            self.view_htu = ctk.CTkFrame(self, width=WIDTH, height=HEIGHT-NAVBAR_HEIGHT)
 
-            self.button_save.place(x=25, y=15)
-            self.button_load.place(relx=1.0, x=-25, y=15, anchor="ne")
+            self.view_frames = [self.view_timers, self.view_settings, self.view_load_presets, self.view_about, self.view_htu]
 
-            self.scroll_frame_timers = ctk.CTkScrollableFrame(self.frame_timers, width=frame_width-40, height=frame_height-105, bg_color="#1c1c1c")
-            self.scroll_frame_timers.place(x=10, y=55)
-
-            self.button_togglePreview = ctk.CTkButton(self.frame_timers, text="Show Timer", 
-                                            width=150, height=30,
-                                            fg_color="#10ad3a",
-                                            hover_color="#0c8a2e",
-                                            text_color="#000000",
-                                            font=(self.CONSOLAS_REGULAR, 15),
-                                            command=self.ACbutton_togglePreview)
-            
-            self.button_togglePreview.place(x=115, y=frame_height-40)
-
-
+            self.view_timers.place(x=0, y=24)
 
             
+
+
+
+
             return True
 
         except Exception as e:
             print(e)
             return False
+        
 
 def main() -> None:
     app = App()

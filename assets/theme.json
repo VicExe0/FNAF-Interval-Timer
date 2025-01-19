@@ -3,7 +3,7 @@
       "fg_color": ["#c7c7c7", "#212121"]
     },
     "CTkToplevel": {
-      "fg_color": ["#c7c7c7", "#212121"]
+      "fg_color": ["#000000", "#000000"]
     },
     "CTkFrame": {
       "corner_radius": 0,
@@ -13,7 +13,7 @@
       "border_color": ["#000000", "#000000"]
     },
     "CTkButton": {
-      "corner_radius": 4,
+      "corner_radius": 0,
       "border_width": 0,
       "fg_color": ["#7289da", "#7289da"],
       "hover_color": ["#54649e", "#54649e"],
@@ -24,6 +24,7 @@
     "CTkLabel": {
       "corner_radius": 0,
       "fg_color": "transparent",
+      "bg_color": "transparent",
       "text_color": ["#ffffff", "#ffffff"]
     },
     "CTkEntry": {

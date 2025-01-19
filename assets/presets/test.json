@@ -1,0 +1,50 @@
+{
+    "window_settings": {
+        "bg_color" :"#000000",
+        "always_on_top": true,
+        "global_hotkeys": true,
+        "default_font": "LCD Solid"
+    },
+    "binds": {
+        "startstop": "`",
+        "restart": "=" 
+    },
+    "global_timer": {
+        "color": "#ffffff",
+        "frames": 3240
+    },
+    "timers": [
+        {
+            "color": "#8934eb",
+            "frames": 1024,
+            "changes": [
+                {
+                    "trigger_frame": 3000,
+                    "change_to": 500,
+                    "overwrite": false
+                },
+                {
+                    "trigger_frame": 1000,
+                    "change_to": 1024,
+                    "overwrite": false
+                }
+            ]
+        },
+        {
+            "color": "#18cc81",
+            "frames": 2048,
+            "changes": [
+                {
+                    "trigger_frame": 3000,
+                    "change_to": 500,
+                    "overwrite": true
+                },
+                {
+                    "trigger_frame": 2000,
+                    "change_to": 1024,
+                    "overwrite": true
+                }
+            ]
+        }
+    ]
+}

@@ -1,8 +1,44 @@
+from typing import Callable, Optional
 from PIL import Image, ImageDraw
-from typing import Callable
 
 import customtkinter as ctk
 import colorsys
+import re
+
+class ColorEntry(ctk.CTkEntry):
+    def __init__(self, parent: ctk.CTk, height: int, width: int, font: tuple, default_color: str = "#ffffff", padding: int = 10) -> None:
+        super().__init__(parent, placeholder_text="HEX Color", width=width, height=height, font=font)
+        self.font = font
+
+        self.insert(0, default_color)
+
+        self.button = ctk.CTkButton(self, height=height, width=height, fg_color=default_color, hover_color=default_color, text="", font=font, corner_radius=(height // 2), command=self.changeColor)
+        self.button.place(relx=1.0, rely=0.5, anchor="e", x=-3)
+
+        self.bind("<Return>", self.updateColor)
+
+    def changeColor(self, color: Optional[list] = None) -> None:
+        if color is None:
+            ColorPicker(self, self.changeColor, self.font)
+            return
+        
+        hex = color[1]
+
+        self.button.configure(fg_color=hex, hover_color=hex)
+        self.delete(0, 'end')
+        self.insert(0, hex)
+        self.master.focus_set()
+
+    def updateColor(self, event) -> None:
+        def isValidColor(hex_value: str) -> bool:
+            return bool(re.fullmatch(r"#[0-9a-fA-F]{6}", hex_value))
+        
+        value = self.get()
+
+        color = value if isValidColor(value) else "#ffffff"
+
+        self.changeColor((0, color))
+        
 
 class ColorPicker(ctk.CTkToplevel):
     def __init__(self, parent: ctk.CTk, callback: Callable, font: tuple, title: str = "Choose a color", *args, **kwargs):
@@ -42,14 +78,20 @@ class ColorPicker(ctk.CTkToplevel):
         self.colorPreview = ctk.CTkFrame(self, width=self.WIDTH-40, height=40, fg_color="#ffffff")
         self.colorPreview.place(relx=0.5, rely=0.81, anchor="center")
 
+        self.colorLabel = ctk.CTkLabel(self.colorPreview, text="#ffffff", text_color="#000000", font=font)
+        self.colorLabel.place(relx=0.5, rely=0.5, anchor="center")
+
         self.bindEvents(self.label, 0)
         self.bindEvents(self.label2, 1)
 
         self.button_submit = ctk.CTkButton(self, width=80, height=30, text="Submit", fg_color="#03fc8c", hover_color="#048c4f", font=font, text_color="#000000", command=self.submit)
         self.button_cancel = ctk.CTkButton(self, width=80, height=30, text="Cancel", fg_color="#d10f39", hover_color="#8f0724", font=font, command=self.cancel)
 
-        self.button_submit.place(relx=0.4, rely=0.93, anchor="e")
-        self.button_cancel.place(relx=0.6, rely=0.93, anchor="w")
+        self.button_submit.place(relx=0.6, rely=0.93, anchor="w")
+        self.button_cancel.place(relx=0.4, rely=0.93, anchor="e")
+
+        self.lift()
+        self.attributes('-topmost', 1)
 
     def bindEvents(self, label: ctk.CTkLabel, id: int):
         label.bind("<Button-1>", lambda event: self.mouse1ButtonDown(event, id))
@@ -133,4 +175,10 @@ class ColorPicker(ctk.CTkToplevel):
         hex = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
         self.selected_color = [rgb, hex]
 
+        r, g, b = rgb
+
+        brightness = r * 0.299 + g * 0.587 + b * 0.114
+        label_color = "#000000" if brightness > 128 else "#ffffff"
+
         self.colorPreview.configure(fg_color=hex)
+        self.colorLabel.configure(text=hex, text_color=label_color)

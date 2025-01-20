@@ -31,21 +31,16 @@ def readSettignsFile(path: str) -> Optional[dict]:
         with open(path, "r") as f:
             data = json.load(f)
 
-        required_keys = {'window_settings', 'binds', 'global_timer', 'timers'}
-
-        if not required_keys.issubset(data):
-            raise ValueError(f"Configuration file must contain keys: {required_keys}")
-
         return data
     except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Settings file error: {e}")
+        print(f"Config file error: {e}")
     except Exception as e:
         print(f"Unexpected error: {e}")
 
     return None
 
 
-def validateSettingsDict(settings) -> bool:
+def validateConfigDict(config) -> bool:
     MIN_FRAME_REQ = 0
 
     def isValidColor(hex_value: str) -> bool:
@@ -176,21 +171,21 @@ def validateSettingsDict(settings) -> bool:
     }
 
     for key in ["window_settings", "binds", "global_timer"]:
-        if not existsWithInstance(settings, key, dict):
+        if not existsWithInstance(config, key, dict):
             print(f"Missing or invalid '{key}'.")
             return False
         
         validateFunc = FUNCTIONS[key]
 
-        if not validateFunc(settings[key]):
+        if not validateFunc(config[key]):
             print(f"Invalid '{key}' structure.")
             return False
     
-    if "timers" not in settings or not isinstance(settings["timers"], list):
+    if "timers" not in config or not isinstance(config["timers"], list):
         print("Missing or invalid 'timers'.")
         return False
     
-    if not validateTimers(settings["timers"]):
+    if not validateTimers(config["timers"]):
         print("Invalid 'timers' structure.")
         return False
 
@@ -198,26 +193,26 @@ def validateSettingsDict(settings) -> bool:
 
 
 class TimerView(ctk.CTkToplevel):
-    def __init__(self, master, settings_data: Optional[dict] = None, settings_path: Optional[str] = None):
+    def __init__(self, master, config_data: Optional[dict] = None, config_path: Optional[str] = None):
         self.master = master
         self.always_on_top = True
         self.running = False
         self.frame_length = 1 / 60
         
-        if not settings_data is None:
-            self.settings = settings_data
+        if not config_data is None:
+            self.config = config_data
 
-        elif not settings_path is None:
-            self.settings = readSettignsFile(settings_path)
+        elif not config_path is None:
+            self.config = readSettignsFile(config_path)
 
-            if self.settings is None:
-                raise ValueError(f"Failed to load settings from '{settings_path}'.")
+            if self.config is None:
+                raise ValueError(f"Failed to load config from '{config_path}'.")
             
         else:
-            raise ValueError("Settings value is required")
+            raise ValueError("Config value is required")
         
-        if not validateSettingsDict(self.settings):
-            raise ValueError(f"Settings data is corrupted or incorrect.")
+        if not validateConfigDict(self.config):
+            raise ValueError(f"Config data is corrupted or incorrect.")
 
     def _makeWindowDragable(self) -> bool:
         try:
@@ -227,16 +222,14 @@ class TimerView(ctk.CTkToplevel):
                 self._offsets = [event.x_root - self.winfo_x(), event.y_root - self.winfo_y()]
 
             def drag(event):
-                if hasattr(self, "_offsets"):  # Ensure offsets are set before dragging
+                if hasattr(self, "_offsets"):
                     x = event.x_root - self._offsets[0]
                     y = event.y_root - self._offsets[1]
                     self.geometry(f"+{x}+{y}")
 
-            # Bind specifically to the current `TimerView` window
             self.bind("<Button-1>", saveOffset)
             self.bind("<B1-Motion>", drag)
 
-            # Store bound methods for cleanup
             self._drag_callbacks = {"<Button-1>": saveOffset, "<B1-Motion>": drag}
 
             return True
@@ -253,13 +246,13 @@ class TimerView(ctk.CTkToplevel):
 
         Thread(target=listener, daemon=True).start()
 
-    def _loadSettings(self) -> bool:
+    def _loadConfig(self) -> bool:
         try:
-            window_settings = self.settings.get('window_settings', {})
+            window_settings = self.config.get('window_settings', {})
             if not window_settings:
                 raise ValueError("Missing 'window_settings' in configuration.")
 
-            binds = self.settings.get('binds', {})
+            binds = self.config.get('binds', {})
             if not binds:
                 raise ValueError("Missing 'binds' in configuration.")
 
@@ -310,14 +303,14 @@ class TimerView(ctk.CTkToplevel):
             print("Failed to make window dragable.")
             return
 
-        if not self._loadSettings():
+        if not self._loadConfig():
             print("Failed to load settings.")
             return
 
         window_settings, global_timer, timers = (
-            self.settings['window_settings'],
-            self.settings['global_timer'],
-            self.settings['timers'],
+            self.config['window_settings'],
+            self.config['global_timer'],
+            self.config['timers'],
         )
 
         default_font = window_settings['default_font']

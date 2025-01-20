@@ -1,0 +1,4 @@
+customtkinter==5.2.2
+keyboard==0.13.5
+Pillow==11.1.0
+tkextrafont==0.6.3

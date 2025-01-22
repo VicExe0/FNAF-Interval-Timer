@@ -2,6 +2,7 @@ from timer import TimerView, validateConfigDict
 from typing import Optional, Callable, Any
 from tkextrafont import Font as exFont
 from colorpicker import ColorEntry
+from bindbutton import BindButton
 from tkinter import filedialog
 
 import customtkinter as ctk
@@ -201,6 +202,9 @@ class App(ctk.CTk):
         for view in self.view_frames:
             view.place_forget()
 
+        self.bind_startstop.reset()
+        self.bind_reset.reset()
+
         self.view_frames[id].place(relx=0.5, rely=0.5, anchor="center", y=12) # NAVBAR_HEIGHT
         self.closeNavBarFrame()
 
@@ -235,7 +239,9 @@ class App(ctk.CTk):
             view_height = HEIGHT-NAVBAR_HEIGHT-20
             view_width = WIDTH-20
             consolas_regular15 = (self.CONSOLAS_REGULAR, 15)
+            consolas_regular20 = (self.CONSOLAS_REGULAR, 20)
             consolas_regular24 = (self.CONSOLAS_REGULAR, 24)
+            consolas_regular30 = (self.CONSOLAS_REGULAR, 30)
 
             self.nav_bar = ctk.CTkFrame(self, width=WIDTH, height=NAVBAR_HEIGHT, fg_color="#292929")
             self.nav_version_label = ctk.CTkLabel(self.nav_bar, text=VERSION, font=(self.CONSOLAS_REGULAR, 14), text_color="#595959")
@@ -260,7 +266,7 @@ class App(ctk.CTk):
             nav_file_save = NavSubButton(self.nav_file_frame, 120, 30, "Save config", consolas_regular15, self.saveConfig)
             nav_file_load = NavSubButton(self.nav_file_frame, 120, 30, "Load config", consolas_regular15, self.loadConfig)
             nav_file_loadpreset = NavSubButton(self.nav_file_frame, 120, 30, "Load preset", consolas_regular15, lambda: self.changeView(2))
-            nav_settings_change = NavSubButton(self.nav_settings_frame, 120, 30, "Change settings", consolas_regular15, lambda: self.changeView(1))
+            nav_settings_change = NavSubButton(self.nav_settings_frame, 120, 30, "Settings", consolas_regular15, lambda: self.changeView(1))
             nav_settings_shtimer = NavSubButton(self.nav_settings_frame, 120, 30, "Show/Hide timer", consolas_regular15, self.toggleTimerWindow)
             nav_help_about = NavSubButton(self.nav_help_frame, 120, 30, "About", consolas_regular15, lambda: self.changeView(3))
             nav_help_git = NavSubButton(self.nav_help_frame, 120, 30, "My Github", consolas_regular15, self.openGithub)
@@ -296,13 +302,51 @@ class App(ctk.CTk):
             createBackButton(self.view_about, consolas_regular15, lambda: self.changeView(0))
             createBackButton(self.view_htu, consolas_regular15, lambda: self.changeView(0))
 
-            createTitle(self.view_load_presets, "Load Presets", consolas_regular24)
-            createTitle(self.view_settings, "Settings", consolas_regular24)
-            createTitle(self.view_htu, "How To Use", consolas_regular24)
-            createTitle(self.view_timers, "Timers", consolas_regular24)
-            createTitle(self.view_about, "About", consolas_regular24)
+            createTitle(self.view_load_presets, "Load Presets", consolas_regular30)
+            createTitle(self.view_settings, "Settings", consolas_regular30)
+            createTitle(self.view_htu, "How To Use", consolas_regular30)
+            createTitle(self.view_timers, "Timers", consolas_regular30)
+            createTitle(self.view_about, "About", consolas_regular30)
 
+            binds_label = ctk.CTkLabel(self.view_settings, text="Binds", font=consolas_regular24)
+            binds_label.place(x=20, y=40)
+
+            startstop_label = ctk.CTkLabel(self.view_settings, text="start/stop", text_color="#d1d1d1", font=consolas_regular20)
+            self.bind_startstop = BindButton(self.view_settings, default_button="`", width=150, height=20, font=consolas_regular20, fg_color="#424242", hover_color="#303030")
             
+            startstop_label.place(x=20, y=70)
+            self.bind_startstop.place(x=130, y=70)
+
+            startstop_label = ctk.CTkLabel(self.view_settings, text="restart", text_color="#d1d1d1", font=consolas_regular20)
+            self.bind_reset = BindButton(self.view_settings, default_button="=", width=150, height=20, font=consolas_regular20, fg_color="#424242", hover_color="#303030")
+
+            startstop_label.place(x=20, y=100)
+            self.bind_reset.place(x=130, y=100)
+
+            window_label = ctk.CTkLabel(self.view_settings, text="Window", font=consolas_regular24)
+            window_label.place(x=20, y=150)
+
+            bgcolor_label = ctk.CTkLabel(self.view_settings, text="background color", text_color="#d1d1d1", font=consolas_regular24)
+            self.bg_color_entry = ColorEntry(self.view_settings, height=20, width=120, font=consolas_regular20, default_color="#000000")
+
+            bgcolor_label.place(x=20, y=180)
+            self.bg_color_entry.place(x=220, y=180)
+
+            aot_label = ctk.CTkLabel(self.view_settings, text="always on top", text_color="#d1d1d1", font=consolas_regular24)
+            self.aot_checkbox = ctk.CTkCheckBox(self.view_settings, width=20, height=20, text="", onvalue=True, offvalue=False)
+            
+            aot_label.place(x=20, y=210)
+            self.aot_checkbox.place(x=190, y=212, anchor="nw")
+            self.aot_checkbox.select()
+
+            gh_label = ctk.CTkLabel(self.view_settings, text="global hotkeys", text_color="#d1d1d1", font=consolas_regular24)
+            self.gh_checkbox = ctk.CTkCheckBox(self.view_settings, width=20, height=20, text="", onvalue=True, offvalue=False)
+            
+            gh_label.place(x=20, y=240)
+            self.gh_checkbox.place(x=190, y=242, anchor="nw")
+            self.gh_checkbox.select()
+
+
 
 
 
@@ -321,7 +365,23 @@ class App(ctk.CTk):
     
 
     def getConfigData(self) -> dict:
-        data = {}
+        data = {
+            "window_settings": {
+                "bg_color": self.bg_color_entry.getColor(),
+                "always_on_top": bool(self.aot_checkbox.get()),
+                "global_hotkeys": bool(self.gh_checkbox.get()),
+                "default_font": self.LCD_SOLID
+            },
+            "binds": {
+                "startstop": self.bind_startstop.getKey(),
+                "restart": self.bind_reset.getKey() 
+            },
+            "global_timer": {
+                "color": "#ffffff",
+                "frames": 3240
+            },
+            "timers": []
+        }
 
         # logic
 

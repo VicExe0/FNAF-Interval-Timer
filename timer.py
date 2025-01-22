@@ -198,6 +198,7 @@ class TimerView(ctk.CTkToplevel):
         self.always_on_top = True
         self.running = False
         self.frame_length = 1 / 60
+        self.hotkey_ids = []
         
         if not config_data is None:
             self.config = config_data
@@ -240,8 +241,8 @@ class TimerView(ctk.CTkToplevel):
         
     def _setupGlobalHotkeys(self, binds: dict):
         def listener():
-            keyboard.add_hotkey(binds.get('startstop', 'ctrl+alt+s'), self.pauseResumeTimers)
-            keyboard.add_hotkey(binds.get('restart', 'ctrl+alt+r'), self.resetTimers)
+            self.hotkey_ids.append(keyboard.add_hotkey(binds.get('startstop', 'ctrl+alt+s'), self.pauseResumeTimers))
+            self.hotkey_ids.append(keyboard.add_hotkey(binds.get('restart', 'ctrl+alt+r'), self.resetTimers))
             keyboard.wait()
 
         Thread(target=listener, daemon=True).start()
@@ -333,8 +334,13 @@ class TimerView(ctk.CTkToplevel):
             for event, callback in self._drag_callbacks.items():
                 self.unbind(event)
 
-        self.destroy()
+        self.unbind_all("<Key>")
 
+        for hotkey_id in self.hotkey_ids:
+            keyboard.remove_hotkey(hotkey_id)
+        self.hotkey_ids.clear()
+
+        self.destroy()
 
     def pauseResumeTimers(self) -> None:
         self.running = not self.running

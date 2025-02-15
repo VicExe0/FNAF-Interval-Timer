@@ -1,4 +1,3 @@
-from timerlabel import TimerLabel
 from typing import Optional, Any
 from threading import Thread
 
@@ -8,9 +7,6 @@ import keyboard
 import time
 import json
 import re
-
-ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("assets/theme.json")
 
 def getTextHeight(font_family, font_size):
     root = tk.Tk()
@@ -26,7 +22,7 @@ def getTextHeight(font_family, font_size):
     return text_height
 
 
-def readSettignsFile(path: str) -> Optional[dict]:
+def readConfigFile(path: str) -> Optional[dict]:
     try:
         with open(path, "r") as f:
             data = json.load(f)
@@ -82,6 +78,9 @@ def validateConfigDict(config) -> bool:
             print("Invalid type of 'timers'.")
             return False
         
+        if len(timers) == 0:
+            return True
+        
         for timer in timers:
             if not existsWithInstance(timer, "color", str):
                 print("Missing or invalid 'color' in timer.")
@@ -93,6 +92,14 @@ def validateConfigDict(config) -> bool:
             
             if not existsWithInstance(timer, "frames", int):
                 print("Missing or invalid 'frames'.")
+                return False
+            
+            if not existsWithInstance(timer, "title", str):
+                print("Missing or invalid 'title'.")
+                return False
+            
+            if not existsWithInstance(timer, "visible", bool):
+                print("Missing or invalid 'visible'.")
                 return False
             
             if timer["frames"] <= MIN_FRAME_REQ:
@@ -124,10 +131,6 @@ def validateConfigDict(config) -> bool:
         
         if not existsWithInstance(ws, "global_hotkeys", bool):
             print("Missing or invalid 'global_hotkeys' in 'window_settings'.")
-            return False
-        
-        if not existsWithInstance(ws, "default_font", str):
-            print("Missing or invalid 'default_font' in 'window_settings'.")
             return False
         
         return True
@@ -192,19 +195,99 @@ def validateConfigDict(config) -> bool:
     return True
 
 
-class TimerView(ctk.CTkToplevel):
-    def __init__(self, master, config_data: Optional[dict] = None, config_path: Optional[str] = None):
+class TimerLabel:
+    def __init__(self, master, total_frames: int, padLength: int, color: str, font: tuple) -> None:
+        self.label = ctk.CTkLabel(master, text=f"{total_frames:0>{padLength}}", text_color=color, font=font)
+        self.maxFrames = total_frames
+        self.remainingFrames = total_frames
+        self.initialFrames = total_frames
+        self.padLength = padLength
+        self.isGlobal = False
+        self.frameChanges = []
+        self.numFrameChanges = 0
         self.master = master
+
+    def _applyFrameChanges(self, globalFrames: int) -> None:
+        for change in self.frameChanges:
+            if change["done"] or globalFrames > change["trigger_frame"]:
+                continue
+
+            self.maxFrames = change["change_to"]
+
+            if change["overwrite"]:
+                self.reset()
+
+            change["done"] = True
+
+    def configureChanges(self, *changes: dict | list[dict]) -> None:
+        if not changes:
+            return
+
+        if len(changes) == 1 and isinstance(changes[0], list):
+            changeList = changes[0]
+        else:
+            changeList = changes
+
+        for change in changeList:
+            change["done"] = False
+            self.frameChanges.append(change)
+
+        self.numFrameChanges = len(self.frameChanges)
+
+    def setGlobalState(self, state: bool = True) -> None:
+        self.isGlobal = state
+
+    def resetToInitial(self) -> None:
+        self.remainingFrames = self.initialFrames
+        self.maxFrames = self.initialFrames
+
+        for change in self.frameChanges:
+            change["done"] = False
+
+    def decrementFrames(self) -> None:
+        if self.remainingFrames > 0:
+            self.remainingFrames -= 1
+
+    def reset(self) -> None:
+        self.remainingFrames = self.maxFrames
+
+    def place(self, **kwargs) -> None:
+        self.label.place(**kwargs)
+
+    def update(self, globalFrames: int) -> None:
+        if not self.isGlobal and self.numFrameChanges != 0:
+            self._applyFrameChanges(globalFrames)
+
+        if self.remainingFrames <= 0:
+            self.reset()
+
+        self.label.configure(text=f"{self.remainingFrames:0>{self.padLength}}")
+
+    def __getattr__(self, value: Any) -> Optional[Any]:
+        if value in self.__dict__:
+            return self.__dict__[value]
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{value}'")
+
+
+class TimerView(ctk.CTkToplevel):
+    def __init__(self, master, font: str, config_data: Optional[dict] = None, config_path: Optional[str] = None):
+        self.master = master
+        self.font = font
         self.always_on_top = True
         self.running = False
         self.frame_length = 1 / 60
         self.hotkey_ids = []
+        self.TOLERANCE = 0.00285535499956796
+
+        self.time_o = 0
+        self.total = 0
+        self.count = 0
         
         if not config_data is None:
             self.config = config_data
 
         elif not config_path is None:
-            self.config = readSettignsFile(config_path)
+            self.config = readConfigFile(config_path)
 
             if self.config is None:
                 raise ValueError(f"Failed to load config from '{config_path}'.")
@@ -284,6 +367,9 @@ class TimerView(ctk.CTkToplevel):
 
         y_pos = 7
         for timer in timers:
+            if not timer["visible"]:
+                continue
+
             frames = timer["frames"]
             paddingWidth = max(len(str(frames)), 4)
             
@@ -314,20 +400,19 @@ class TimerView(ctk.CTkToplevel):
             self.config['timers'],
         )
 
-        default_font = window_settings['default_font']
-
         main_timer_font_size = 45      # global timer font size
         regular_timer_font_size = 40   # rest of the timers font size
 
-        g_timer_height = getTextHeight(default_font, main_timer_font_size)
-        timer_height = getTextHeight(default_font, regular_timer_font_size)
+        g_timer_height = getTextHeight(self.font, main_timer_font_size)
+        timer_height = getTextHeight(self.font, regular_timer_font_size)
 
-        window_height = g_timer_height + timer_height * len(timers)
+        timers_count = sum(1 for i in timers if i.get("visible", False))
+        window_height = g_timer_height + timer_height * timers_count
 
         self.geometry(f"200x{window_height}")
         self.configure(fg_color=window_settings['bg_color'])
 
-        self._createTimerLabels(global_timer, timers, timer_height, default_font, [main_timer_font_size, regular_timer_font_size])
+        self._createTimerLabels(global_timer, timers, timer_height, self.font, [main_timer_font_size, regular_timer_font_size])
 
     def destroyWindow(self) -> None:
         if hasattr(self, "_drag_callbacks"):
@@ -338,32 +423,34 @@ class TimerView(ctk.CTkToplevel):
 
         for hotkey_id in self.hotkey_ids:
             keyboard.remove_hotkey(hotkey_id)
-        self.hotkey_ids.clear()
+        
+        self.hotkey_ids = []
 
         self.destroy()
 
-    def pauseResumeTimers(self) -> None:
-        self.running = not self.running
-
-        if self.running:
-            self.last_time = time.time()
-            self.updateTimers()
-
-    def resetTimers(self) -> None:
+    def resetTimers(self, *args) -> None:
         self.running = False
 
         for timer in self.all_timers:
             timer.resetToInitial()
             timer.update(self.g_timer.remainingFrames)
 
+    def pauseResumeTimers(self, *args) -> None:
+        self.running = not self.running
+
+        self.time_o = time.perf_counter()
+
+        if self.running:
+            self.total = 0
+            self.last_time = time.perf_counter()
+            self.updateTimers()
+
     def updateTimers(self) -> None:
         if not self.running:
             return
         
-        current_time = time.time()
-        delta_time = current_time - self.last_time
-        self.last_time = current_time
-        
+        start_time = time.perf_counter()
+
         for index, timer in enumerate(self.all_timers):
             timer.decrementFrames()
 
@@ -372,7 +459,8 @@ class TimerView(ctk.CTkToplevel):
 
             timer.update(self.g_timer.remainingFrames)
 
-        sleep_time = max(0, self.frame_length - delta_time)
+        elapsed = time.perf_counter() - start_time
+        delay = max(0, self.frame_length - elapsed - self.TOLERANCE)
+        self.total += delay
 
-        self.after(int(sleep_time * 1000), self.updateTimers)
- 
+        self.after(int(delay * 1000), self.updateTimers)

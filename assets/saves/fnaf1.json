@@ -1,0 +1,45 @@
+{
+    "window_settings": {
+        "bg_color": "#000000",
+        "always_on_top": true,
+        "global_hotkeys": true
+    },
+    "binds": {
+        "startstop": "`",
+        "restart": "="
+    },
+    "global_timer": {
+        "color": "#ffffff",
+        "frames": 32100
+    },
+    "timers": [
+        {
+            "title": "Freddy",
+            "color": "#f78807",
+            "frames": 181,
+            "visible": true,
+            "changes": []
+        },
+        {
+            "title": "Bonnie",
+            "color": "#4c05f9",
+            "frames": 298,
+            "visible": true,
+            "changes": []
+        },
+        {
+            "title": "Chicka",
+            "color": "#f4f00a",
+            "frames": 299,
+            "visible": true,
+            "changes": []
+        },
+        {
+            "title": "Foxy",
+            "color": "#fb0314",
+            "frames": 301,
+            "visible": true,
+            "changes": []
+        }
+    ]
+}

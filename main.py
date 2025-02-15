@@ -1,3 +1,4 @@
+from timerscrollableframe import TimerScrollableFrame
 from timer import TimerView, validateConfigDict
 from typing import Optional, Callable, Any
 from tkextrafont import Font as exFont
@@ -6,8 +7,8 @@ from bindbutton import BindButton
 from tkinter import filedialog
 
 import customtkinter as ctk
-
 import webbrowser
+import keyboard
 import json
 
 import os
@@ -31,7 +32,6 @@ def createBackButton(master, font: tuple, command: Callable) -> ctk.CTkButton:
     button.place(relx=0.0, rely=1.0, anchor="sw", x=5, y=-5)
 
     return button
-
 
 def createTitle(master, title: str, font: tuple) -> ctk.CTkLabel:
     label = ctk.CTkLabel(master, text=title, font=font)
@@ -92,7 +92,7 @@ class App(ctk.CTk):
         self.currentNavFrame = None
         self.timerWindow = None
         self.currentScreen = 0
-        self.choosedPreset = "FNaF 1"
+        self.hotkey_ids = []
 
         self.bind("<Button-1>", self.mouse1ButtonDown)
 
@@ -132,11 +132,11 @@ class App(ctk.CTk):
 
             return False
         
-    def openGithub(self) -> None: # Button Action
+    def openGithub(self) -> None:
         self.closeNavBarFrame()
         webbrowser.open(GITHUB_URL)
         
-    def showNavFrame(self, id: int) -> None: # Button Action
+    def showNavFrame(self, id: int) -> None: 
         for frame in self.nav_frames:
             frame.forgetFrame()
 
@@ -148,10 +148,10 @@ class App(ctk.CTk):
         }.get(id, 0)
 
         frame = self.nav_frames[id]
-        frame.placeFrame(x=pos, y=24) # NAVBAR_HEIGHT
+        frame.placeFrame(x=pos, y=24)
         self.currentNavFrame = frame
 
-    def saveConfig(self) -> None: # Button Action
+    def saveConfigFile(self) -> None: 
         file_path = filedialog.asksaveasfilename(
             title="Save config",
             defaultextension=".json",
@@ -169,11 +169,10 @@ class App(ctk.CTk):
                 json.dump(data, file, indent=4)
 
         except Exception as e:
-            # Failed to save file logic
-            
+            print("Failed to save config file.")
             return
 
-    def loadConfig(self) -> None: # Button Action
+    def loadConfigFile(self) -> None:
         file_path = filedialog.askopenfilename(
             title="Load config",
             filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")]
@@ -198,14 +197,14 @@ class App(ctk.CTk):
         except Exception as e:
             print(f"Unexpected error: {e}")
 
-    def changeView(self, id: int) -> None: # Button Action
+    def changeView(self, id: int) -> None:
         for view in self.view_frames:
             view.place_forget()
 
         self.bind_startstop.reset()
         self.bind_reset.reset()
 
-        self.view_frames[id].place(relx=0.5, rely=0.5, anchor="center", y=12) # NAVBAR_HEIGHT
+        self.view_frames[id].place(relx=0.5, rely=0.5, anchor="center", y=12)
         self.closeNavBarFrame()
 
     def closeNavBarFrame(self) -> None:
@@ -219,17 +218,17 @@ class App(ctk.CTk):
         if not self.timerWindow is None:
             self.timerWindow.destroyWindow()
             self.timerWindow = None
+            self.hotkey_ids = []
             return
         
-        # data = self.getConfigData()
-        # self.timerWindow = TimerView(self, config_data=data)
+        data = self.getConfigData()
+        self.timerWindow = TimerView(self, font=self.LCD_SOLID, config_data=data)
 
-        self.timerWindow = TimerView(self, config_path="assets/presets/test.json")
         self.timerWindow.createWindow()
+        self.hotkey_ids = self.timerWindow.hotkey_ids
 
     def changePreset(self, choose) -> None:
         self.choosedPreset = choose
-
 
     def loadWidgets(self) -> bool:
         WIDTH, HEIGHT = self.WIDTH, self.HEIGHT
@@ -249,9 +248,9 @@ class App(ctk.CTk):
             self.nav_bar.place(x=0, y=0)
             self.nav_version_label.place(relx=1.0, rely=0.5, anchor="e", x=-5)
 
-            self.nav_file_frame = NavFrame(self, width=120, height=90, fg_color="#363636")
+            self.nav_file_frame = NavFrame(self, width=120, height=60, fg_color="#363636")
             self.nav_settings_frame = NavFrame(self, width=120, height=60, fg_color="#363636")
-            self.nav_help_frame = NavFrame(self, width=120, height=90, fg_color="#363636")
+            self.nav_help_frame = NavFrame(self, width=120, height=60, fg_color="#363636")
             
             self.nav_frames = [self.nav_file_frame, self.nav_settings_frame, self.nav_help_frame]
 
@@ -263,48 +262,33 @@ class App(ctk.CTk):
             nav_controls.place(x=50, y=0)
             nav_help.place(x=120, y=0)
 
-            nav_file_save = NavSubButton(self.nav_file_frame, 120, 30, "Save config", consolas_regular15, self.saveConfig)
-            nav_file_load = NavSubButton(self.nav_file_frame, 120, 30, "Load config", consolas_regular15, self.loadConfig)
-            nav_file_loadpreset = NavSubButton(self.nav_file_frame, 120, 30, "Load preset", consolas_regular15, lambda: self.changeView(2))
+            nav_file_save = NavSubButton(self.nav_file_frame, 120, 30, "Save config", consolas_regular15, self.saveConfigFile)
+            nav_file_load = NavSubButton(self.nav_file_frame, 120, 30, "Load config", consolas_regular15, self.loadConfigFile)
             nav_settings_change = NavSubButton(self.nav_settings_frame, 120, 30, "Settings", consolas_regular15, lambda: self.changeView(1))
             nav_settings_shtimer = NavSubButton(self.nav_settings_frame, 120, 30, "Show/Hide timer", consolas_regular15, self.toggleTimerWindow)
-            nav_help_about = NavSubButton(self.nav_help_frame, 120, 30, "About", consolas_regular15, lambda: self.changeView(3))
+            nav_help_about = NavSubButton(self.nav_help_frame, 120, 30, "About", consolas_regular15, lambda: self.changeView(2))
             nav_help_git = NavSubButton(self.nav_help_frame, 120, 30, "My Github", consolas_regular15, self.openGithub)
-            nav_help_htu = NavSubButton(self.nav_help_frame, 120, 30, "How to use", consolas_regular15, lambda: self.changeView(4))
 
             nav_file_save.place(x=0, y=0)
             nav_file_load.place(x=0, y=30)
-            nav_file_loadpreset.place(x=0, y=60)
             nav_settings_change.place(x=0, y=0)
             nav_settings_shtimer.place(x=0, y=30)
             nav_help_about.place(x=0, y=0)
             nav_help_git.place(x=0, y=30)
-            nav_help_htu.place(x=0, y=60)
 
-            self.view_timers, self.view_settings, self.view_load_presets, self.view_about, self.view_htu = (
+            self.view_timers, self.view_settings, self.view_about = (
                 ctk.CTkFrame(self, width=view_width, height=view_height, fg_color="#292929", corner_radius=6)
-                for _ in range(5)
+                for _ in range(3)
             )
 
-            self.view_frames = [self.view_timers, self.view_settings, self.view_load_presets, self.view_about, self.view_htu]
+            self.view_frames = [self.view_timers, self.view_settings, self.view_about]
 
             self.view_timers.place(relx=0.5, rely=0.5, anchor="center", y=12)
 
-            # Load view content
-            loadPreset_cb = ctk.CTkOptionMenu(self.view_load_presets, values=["FNaF 1", "FNaF 4", "SL Enard"], command=self.changePreset)
-            loadPreset_btn = ctk.CTkButton(self.view_load_presets, text="Load", font=(self.CONSOLAS_REGULAR, 18), fg_color="#0bd972", hover_color="#0b8a4a", text_color="#000000", corner_radius=5, command=lambda: print(self.choosedPreset))
-
-            loadPreset_cb.place(relx=0.5, rely=0.4, anchor="center")
-            loadPreset_btn.place(relx=0.5, rely=0.6, anchor="center")
-
-            createBackButton(self.view_load_presets, consolas_regular15, lambda: self.changeView(0))
             createBackButton(self.view_settings, consolas_regular15, lambda: self.changeView(0))
             createBackButton(self.view_about, consolas_regular15, lambda: self.changeView(0))
-            createBackButton(self.view_htu, consolas_regular15, lambda: self.changeView(0))
 
-            createTitle(self.view_load_presets, "Load Presets", consolas_regular30)
             createTitle(self.view_settings, "Settings", consolas_regular30)
-            createTitle(self.view_htu, "How To Use", consolas_regular30)
             createTitle(self.view_timers, "Timers", consolas_regular30)
             createTitle(self.view_about, "About", consolas_regular30)
 
@@ -346,44 +330,63 @@ class App(ctk.CTk):
             self.gh_checkbox.place(x=190, y=242, anchor="nw")
             self.gh_checkbox.select()
 
+            about_label = ctk.CTkLabel(self.view_about, font=(self.CONSOLAS_REGULAR, 18), wraplength=WIDTH-60, anchor="w", justify="left", 
+                                       text="The FNaF Interval Timer is a specialized tool designed for players tackling challenges in Five Nights at Freddy's that require precise management of animatronic movement opportunities.\n\
+                                        \rWhether you're aiming for power efficiency in the \"Greenrun\" challenge or optimizing your night strategy, this timer helps you track the exact moments animatronics can move.")
+            about_label.place(relx=0.5, rely=0.43, anchor="center")
 
-
-
-
+            self.timer_scroll_Frame = TimerScrollableFrame(self.view_timers, WIDTH-80, HEIGHT-100, consolas_regular24)
+            self.timer_scroll_Frame.place(relx=0.5, rely=0.5, anchor="center", y=15)
 
             return True
 
         except Exception as e:
             print(e)
             return False
-        
 
     def loadInConfigData(self, data: dict) -> None:
-        # logic
+        window_settings = data["window_settings"]
+        binds = data["binds"]
+        global_timer = data["global_timer"]
+        timers = data["timers"]
+
+        self.bg_color_entry.setColor((0, window_settings["bg_color"]))
+
+        if window_settings["always_on_top"]:
+            self.aot_checkbox.select()
+        else:
+            self.aot_checkbox.deselect()
+
+        if window_settings["global_hotkeys"]:
+            self.gh_checkbox.select()
+        else:
+            self.gh_checkbox.deselect()
+
+        self.bind_startstop.setKey(binds["startstop"])
+        self.bind_reset.setKey(binds["restart"])
         
-        ...
-    
+        self.timer_scroll_Frame.setGlobalTimer(global_timer)
+        self.timer_scroll_Frame.setTimers(timers)
 
     def getConfigData(self) -> dict:
+        global_timer_data = self.timer_scroll_Frame.getGlobalTimerData()
+
         data = {
             "window_settings": {
-                "bg_color": self.bg_color_entry.getColor(),
+                "bg_color": self.bg_color_entry.getColor()[1],
                 "always_on_top": bool(self.aot_checkbox.get()),
-                "global_hotkeys": bool(self.gh_checkbox.get()),
-                "default_font": self.LCD_SOLID
+                "global_hotkeys": bool(self.gh_checkbox.get())
             },
             "binds": {
                 "startstop": self.bind_startstop.getKey(),
                 "restart": self.bind_reset.getKey() 
             },
             "global_timer": {
-                "color": "#ffffff",
-                "frames": 3240
+                "color": global_timer_data["color"],
+                "frames": global_timer_data["frames"]
             },
-            "timers": []
+            "timers": self.timer_scroll_Frame.getTimersData()
         }
-
-        # logic
 
         return data
         
@@ -391,6 +394,21 @@ class App(ctk.CTk):
 def main() -> None:
     app = App()
     app.start()
+    
+    if not app.hotkey_ids is None and not len(app.hotkey_ids) == 0:
+        for hotkey_id in app.hotkey_ids:
+
+            if hotkey_id is None: 
+                continue
+
+            keyboard.remove_hotkey(hotkey_id)
+
+        app.hotkey_ids = []
+
+    app = None
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(e)
